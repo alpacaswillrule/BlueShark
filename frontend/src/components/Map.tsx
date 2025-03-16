@@ -56,7 +56,8 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
   });
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [locations, setLocations] = useState<Location[]>([]);
+  const [allLocations, setAllLocations] = useState<Location[]>([]);
+  const [filteredLocations, setFilteredLocations] = useState<Location[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [locationRatings, setLocationRatings] = useState<Rating[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -91,48 +92,35 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
     return distance;
   }, []);
 
-  // Filter locations in memory based on current filters
-  const filterLocationsInMemory = useCallback((allLocations: Location[], currentFilters: FilterOptions): Location[] => {
-    return allLocations.filter(location => {
-      // Filter by type
-      if (currentFilters.type && location.type !== currentFilters.type) {
-        return false;
-      }
-      
-      // Filter by rating
-      if (currentFilters.rating_min > 0) {
-        // Calculate normalized rating
-        if (location.total_ratings > 0) {
-          const positiveWeight = location.positive_count;
-          const negativeWeight = -1 * location.negative_count;
-          const totalWeight = positiveWeight + negativeWeight;
-          const normalizedRating = (totalWeight / location.total_ratings + 1) / 2 * 5;
-          
-          if (normalizedRating < currentFilters.rating_min) {
-            return false;
-          }
-        } else if (!location.source) {
-          // Skip user-submitted locations with no ratings if minimum rating is set
-          // But keep external locations even if they have no ratings
-          return false;
-        }
-      }
-      
-      // Filter by distance if user location is provided
-      if (userLocation && currentFilters.radius > 0) {
-        const distance = calculateDistance(
-          userLocation.lat, userLocation.lng,
-          location.lat, location.lng
-        );
-        
-        if (distance > currentFilters.radius) {
-          return false;
-        }
-      }
-      
-      return true;
+  // Apply filtering immediately when component mounts or filters change
+  useEffect(() => {
+    console.log('DIRECT FILTER EFFECT TRIGGERED');
+    console.log('Current filter type:', filters.type);
+    console.log('Total locations available:', allLocations.length);
+    
+    // Apply filtering directly
+    let filtered = [...allLocations];
+    
+    // Filter by type if a type filter is active
+    if (filters.type) {
+      console.log(`Filtering by type: ${filters.type}`);
+      filtered = filtered.filter(location => location.type === filters.type);
+    }
+    
+    // Log the results
+    console.log(`FILTERED to ${filtered.length} locations`);
+    
+    // Log types of filtered locations
+    const typeCount: Record<string, number> = {};
+    filtered.forEach(loc => {
+      typeCount[loc.type] = (typeCount[loc.type] || 0) + 1;
     });
-  }, [userLocation, calculateDistance]);
+    console.log('Types after filtering:', typeCount);
+    
+    // Update filtered locations
+    setFilteredLocations(filtered);
+    
+  }, [allLocations, filters.type]);
   
   // Function to fetch locations
   const fetchLocations = useCallback(async () => {
@@ -276,28 +264,23 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
             last_updated: Date.now(),
             ada_accessible: true,
             unisex: true
-          },
-          {
-            id: 'mock-restroom-2',
-            name: 'Mock Restroom 2',
-            type: 'restroom',
-            address: '101 Elm St, Boston, MA',
-            lat: 42.3601 - 0.02,
-            lng: -71.0589 - 0.02,
-            positive_count: 2,
-            neutral_count: 3,
-            negative_count: 1,
-            total_ratings: 6,
-            source: 'goweewee',
-            external_id: 'mock-4',
-            last_updated: Date.now(),
-            ada_accessible: false,
-            unisex: true
           }
         ];
         
-        // Add mock data to cache
-        const mockData = [...mockPoliceStations, ...mockRestrooms];
+        // Only add mock data that matches the current filter type
+        let mockData: Location[] = [];
+        
+        if (!filters.type || filters.type === 'police') {
+          console.log('Adding mock police stations');
+          mockData = [...mockData, ...mockPoliceStations];
+        }
+        
+        if (!filters.type || filters.type === 'restroom') {
+          console.log('Adding mock restrooms');
+          mockData = [...mockData, ...mockRestrooms];
+        }
+        
+        console.log(`Adding ${mockData.length} mock locations to cache`);
         mockData.forEach(location => {
           allLocationsRef.current[location.id] = location;
         });
@@ -306,32 +289,27 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
       console.log('=== FETCH LOCATIONS END ===');
       
       // Get all locations from cache
-      const allLocations = Object.values(allLocationsRef.current);
+      const locations = Object.values(allLocationsRef.current);
       
-      // Apply filters in memory
-      const filteredLocations = filterLocationsInMemory(allLocations, filters);
-      console.log(`Filtered to ${filteredLocations.length} locations based on current filters`);
-      
-      // Update state with filtered locations
-      setLocations(filteredLocations);
+      // Update state with all locations
+      setAllLocations(locations);
     } catch (error) {
       console.error('Error fetching locations:', error);
       
       // Even if the API call fails, we still have our cache
-      const allLocations = Object.values(allLocationsRef.current);
-      const filteredLocations = filterLocationsInMemory(allLocations, filters);
+      const locations = Object.values(allLocationsRef.current);
       
-      if (filteredLocations.length > 0) {
-        console.log(`Using ${filteredLocations.length} cached locations due to API error`);
-        setLocations(filteredLocations);
+      if (locations.length > 0) {
+        console.log(`Using ${locations.length} cached locations due to API error`);
+        setAllLocations(locations);
       } else {
-        setLocations([]);
+        setAllLocations([]);
       }
     } finally {
       // Reset loading state
       setIsLoading(false);
     }
-  }, [filters, userLocation, includeExternal, filterLocationsInMemory, isLoading, setIsLoading]);
+  }, [filters, userLocation, includeExternal, isLoading, setIsLoading]);
   
   // Function to clear the cache and refresh data
   const refreshData = useCallback(() => {
@@ -340,11 +318,16 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
     fetchLocations();
   }, [fetchLocations]);
 
-  // Fetch locations when filters or includeExternal change
+  // Fetch locations only on initial mount
   useEffect(() => {
-    // Call the fetchLocations function
+    console.log('INITIAL FETCH TRIGGERED');
+    console.log('Fetching all locations on mount');
+    
+    // Fetch locations once on mount
     fetchLocations();
-  }, [fetchLocations]);
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Get user's location
   useEffect(() => {
@@ -391,7 +374,8 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
     
     // Clear state
     setMap(null);
-    setLocations([]);
+    setAllLocations([]);
+    setFilteredLocations([]);
     setSelectedLocation(null);
     setLocationRatings([]);
   }, [map]);
@@ -451,6 +435,28 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
   // Render the map
   return isLoaded ? (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* Filter type indicator */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: '10px',
+          left: '10px',
+          zIndex: 1000,
+          backgroundColor: 'white',
+          borderRadius: '4px',
+          padding: '8px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <span style={{ fontWeight: 'bold' }}>
+          Showing: {filters.type ? filters.type.charAt(0).toUpperCase() + filters.type.slice(1) : 'All Locations'} 
+          ({filteredLocations.length} locations)
+        </span>
+      </div>
+
       {/* Refresh button */}
       <div 
         style={{
@@ -483,6 +489,32 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
         </span>
         <span style={{ marginLeft: '5px', fontWeight: 'bold' }}>
           {isLoading ? 'Loading...' : 'Refresh'}
+        </span>
+      </div>
+      
+      {/* Refresh button */}
+      <div 
+        style={{
+          position: 'absolute',
+          top: '60px',
+          right: '10px',
+          zIndex: 1000,
+          backgroundColor: '#4CAF50', // Green background
+          color: 'white',
+          borderRadius: '4px',
+          padding: '8px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+          cursor: isLoading ? 'wait' : 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: isLoading ? 0.7 : 1
+        }}
+        onClick={isLoading ? undefined : refreshData}
+        title={isLoading ? "Loading..." : "Refresh Data"}
+      >
+        <span style={{ fontWeight: 'bold' }}>
+          {isLoading ? 'Loading...' : 'Refresh Data'}
         </span>
       </div>
       
@@ -519,37 +551,51 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
         )}
         
         {/* Render location markers */}
-        {(() => { console.log('=== RENDERING MARKERS ===', locations.length, 'locations'); return null; })()}
-        {locations.length > 0 ? (
-          locations.map((location, index) => {
-            console.log(`Marker ${index}: ${location.name}, lat: ${location.lat}, lng: ${location.lng}, type: ${location.type}, source: ${location.source || 'user'}`);
-            
-            // Skip locations with invalid coordinates
-            if (typeof location.lat !== 'number' || 
-                typeof location.lng !== 'number' || 
-                isNaN(location.lat) || 
-                isNaN(location.lng)) {
-              console.warn(`Skipping marker ${index} due to invalid coordinates:`, location);
-              return null;
-            }
-            
-            // Get the icon for this location
-            const icon = getMarkerIcon(location);
-            console.log(`Marker ${index} icon:`, icon);
-            
-            return (
-              <Marker
-                key={location.id}
-                position={{ lat: location.lat, lng: location.lng }}
-                icon={icon}
-                zIndex={1000} // Ensure markers are on top
-                onClick={() => {
-                  console.log('Marker clicked:', location);
-                  setSelectedLocation(location);
-                }}
-              />
-            );
-          })
+        {(() => { 
+          console.log('=== RENDERING MARKERS ===');
+          console.log(`Rendering ${filteredLocations.length} filtered locations`);
+          
+          // Log types of locations being rendered
+          const typeCount: Record<string, number> = {};
+          filteredLocations.forEach(loc => {
+            typeCount[loc.type] = (typeCount[loc.type] || 0) + 1;
+          });
+          console.log('Types of locations being rendered:', typeCount);
+          
+          return null; 
+        })()}
+        
+        {filteredLocations.length > 0 ? (
+          // Render markers for filtered locations
+          filteredLocations.map((location, index) => {
+              console.log(`Rendering marker ${index}: ${location.name}, lat: ${location.lat}, lng: ${location.lng}, type: ${location.type}, source: ${location.source || 'user'}`);
+              
+              // Skip locations with invalid coordinates
+              if (typeof location.lat !== 'number' || 
+                  typeof location.lng !== 'number' || 
+                  isNaN(location.lat) || 
+                  isNaN(location.lng)) {
+                console.warn(`Skipping marker ${index} due to invalid coordinates:`, location);
+                return null;
+              }
+              
+              // Get the icon for this location
+              const icon = getMarkerIcon(location);
+              console.log(`Marker ${index} icon:`, icon);
+              
+              return (
+                <Marker
+                  key={location.id}
+                  position={{ lat: location.lat, lng: location.lng }}
+                  icon={icon}
+                  zIndex={1000} // Ensure markers are on top
+                  onClick={() => {
+                    console.log('Marker clicked:', location);
+                    setSelectedLocation(location);
+                  }}
+                />
+              );
+            })
         ) : (
           <Marker
             key="no-locations-marker"

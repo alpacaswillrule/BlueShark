@@ -11,9 +11,28 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
   const [ratingMin, setRatingMin] = useState<number>(0);
   const [radius, setRadius] = useState<number>(10); // Default 10km radius
   const [includeExternal, setIncludeExternal] = useState<boolean>(true); // Default to include external data
+  const [filterChangeCount, setFilterChangeCount] = useState<number>(0); // Track filter changes for visual feedback
+
+  // Handle location type change with direct feedback
+  const handleLocationTypeChange = (type: MapViewType) => {
+    console.log(`Changing location type to: ${type}`);
+    setLocationType(type);
+    setFilterChangeCount(prev => prev + 1);
+    
+    // Directly trigger filter change for immediate effect
+    const filters: FilterOptions = {
+      type: type === 'all' ? null : type,
+      rating_min: ratingMin,
+      radius: radius
+    };
+    
+    onFilterChange(filters, includeExternal);
+  };
 
   // Update filters when any filter option changes
   useEffect(() => {
+    console.log(`Filter effect triggered: ${filterChangeCount}`);
+    
     const filters: FilterOptions = {
       type: locationType === 'all' ? null : locationType,
       rating_min: ratingMin,
@@ -21,7 +40,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
     };
     
     onFilterChange(filters, includeExternal);
-  }, [locationType, ratingMin, radius, includeExternal, onFilterChange]);
+  }, [ratingMin, radius, includeExternal, onFilterChange]);
 
   return (
     <div className="filter-controls">
@@ -32,27 +51,95 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
         <div className="button-group">
           <button 
             className={locationType === 'all' ? 'active' : ''} 
-            onClick={() => setLocationType('all')}
+            onClick={() => handleLocationTypeChange('all')}
+            style={{ 
+              position: 'relative',
+              overflow: 'hidden'
+            }}
           >
             All
+            {locationType === 'all' && (
+              <span 
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'rgba(255,255,255,0.3)',
+                  animation: 'ripple 0.6s linear'
+                }}
+              />
+            )}
           </button>
           <button 
             className={locationType === 'restroom' ? 'active' : ''} 
-            onClick={() => setLocationType('restroom')}
+            onClick={() => handleLocationTypeChange('restroom')}
+            style={{ 
+              position: 'relative',
+              overflow: 'hidden'
+            }}
           >
             Restrooms
+            {locationType === 'restroom' && (
+              <span 
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'rgba(255,255,255,0.3)',
+                  animation: 'ripple 0.6s linear'
+                }}
+              />
+            )}
           </button>
           <button 
             className={locationType === 'restaurant' ? 'active' : ''} 
-            onClick={() => setLocationType('restaurant')}
+            onClick={() => handleLocationTypeChange('restaurant')}
+            style={{ 
+              position: 'relative',
+              overflow: 'hidden'
+            }}
           >
             Restaurants
+            {locationType === 'restaurant' && (
+              <span 
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'rgba(255,255,255,0.3)',
+                  animation: 'ripple 0.6s linear'
+                }}
+              />
+            )}
           </button>
           <button 
             className={locationType === 'police' ? 'active' : ''} 
-            onClick={() => setLocationType('police')}
+            onClick={() => handleLocationTypeChange('police')}
+            style={{ 
+              position: 'relative',
+              overflow: 'hidden'
+            }}
           >
             Police
+            {locationType === 'police' && (
+              <span 
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'rgba(255,255,255,0.3)',
+                  animation: 'ripple 0.6s linear'
+                }}
+              />
+            )}
           </button>
         </div>
       </div>
@@ -66,7 +153,10 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
           max="5"
           step="0.5"
           value={ratingMin}
-          onChange={(e) => setRatingMin(parseFloat(e.target.value))}
+          onChange={(e) => {
+            setRatingMin(parseFloat(e.target.value));
+            setFilterChangeCount(prev => prev + 1);
+          }}
           className="slider"
         />
       </div>
@@ -80,7 +170,10 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
           max="50"
           step="1"
           value={radius}
-          onChange={(e) => setRadius(parseInt(e.target.value))}
+          onChange={(e) => {
+            setRadius(parseInt(e.target.value));
+            setFilterChangeCount(prev => prev + 1);
+          }}
           className="slider"
         />
       </div>
@@ -92,15 +185,58 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
             <input
               type="checkbox"
               checked={includeExternal}
-              onChange={(e) => setIncludeExternal(e.target.checked)}
+              onChange={(e) => {
+                setIncludeExternal(e.target.checked);
+                setFilterChangeCount(prev => prev + 1);
+              }}
             />
             Include External Data
           </label>
           <div className="help-text">
-            Show data from Refuge Restrooms, GoWeeWee, and police stations CSV
+            Show data from Refuge Restrooms and police stations CSV
           </div>
         </div>
       </div>
+      
+      {/* Add ripple animation */}
+      <style>
+        {`
+          @keyframes ripple {
+            0% {
+              transform: scale(0);
+              opacity: 1;
+            }
+            100% {
+              transform: scale(4);
+              opacity: 0;
+            }
+          }
+        `}
+      </style>
+      
+      {/* Filter change indicator */}
+      <div className="filter-status">
+        <div style={{ 
+          marginTop: '10px', 
+          padding: '8px', 
+          backgroundColor: '#f0f0f0',
+          borderRadius: '4px',
+          textAlign: 'center',
+          animation: filterChangeCount > 0 ? 'flash 0.5s' : 'none'
+        }}>
+          Filters applied: {filterChangeCount}
+        </div>
+      </div>
+      
+      {/* Add flash animation */}
+      <style>
+        {`
+          @keyframes flash {
+            0% { background-color: #4CAF50; color: white; }
+            100% { background-color: #f0f0f0; color: black; }
+          }
+        `}
+      </style>
     </div>
   );
 };
