@@ -15,6 +15,40 @@
   color: #333;
 }
 
+.source-tag {
+  display: inline-block;
+  background-color: #E3F2FD;
+  color: #1565C0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  margin-bottom: 8px;
+}
+
+.restroom-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.tag.ada {
+  background-color: #E8F5E9;
+  color: #2E7D32;
+}
+
+.tag.unisex {
+  background-color: #F3E5F5;
+  color: #7B1FA2;
+}
+
 .rating-breakdown {
   display: flex;
   justify-content: space-between;

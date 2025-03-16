@@ -9,14 +9,27 @@ const api = axios.create({
   },
 });
 
+// Add a response interceptor for error handling
+api.interceptors.response.use(
+  response => response,
+  error => {
+    console.error('API Error:', error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
+
 // Get locations with filtering
 export const getLocations = async (
   filters: FilterOptions,
   userLat?: number,
-  userLng?: number
+  userLng?: number,
+  includeExternal: boolean = true
 ): Promise<Location[]> => {
   try {
-    const params: Record<string, any> = { ...filters };
+    const params: Record<string, any> = { 
+      ...filters,
+      include_external: includeExternal
+    };
     
     if (userLat && userLng) {
       params.lat = userLat;
@@ -28,6 +41,38 @@ export const getLocations = async (
   } catch (error) {
     console.error('Error getting locations:', error);
     return [];
+  }
+};
+
+// Get external locations specifically
+export const getExternalLocations = async (
+  lat: number,
+  lng: number,
+  radius: number = 10
+): Promise<Location[]> => {
+  try {
+    const params = {
+      lat,
+      lng,
+      radius
+    };
+    
+    const response = await api.get('/external-locations', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error getting external locations:', error);
+    return [];
+  }
+};
+
+// Refresh external data
+export const refreshExternalData = async (): Promise<boolean> => {
+  try {
+    const response = await api.post('/refresh-external-data');
+    return response.status === 202;
+  } catch (error) {
+    console.error('Error refreshing external data:', error);
+    return false;
   }
 };
 

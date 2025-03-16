@@ -9,6 +9,11 @@ export interface Location {
   neutral_count: number;
   negative_count: number;
   total_ratings: number;
+  source?: string; // 'user', 'refuge_restrooms', 'goweewee', 'csv'
+  external_id?: string; // ID from external source
+  ada_accessible?: boolean; // For restrooms
+  unisex?: boolean; // For restrooms
+  last_updated?: number; // Timestamp
 }
 
 export interface Rating {

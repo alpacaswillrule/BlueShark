@@ -3,13 +3,14 @@ import { FilterOptions, MapViewType } from '../types';
 import '../styles/FilterControls.css';
 
 interface FilterControlsProps {
-  onFilterChange: (filters: FilterOptions) => void;
+  onFilterChange: (filters: FilterOptions, includeExternal?: boolean) => void;
 }
 
 const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
   const [locationType, setLocationType] = useState<MapViewType>('all');
   const [ratingMin, setRatingMin] = useState<number>(0);
   const [radius, setRadius] = useState<number>(10); // Default 10km radius
+  const [includeExternal, setIncludeExternal] = useState<boolean>(true); // Default to include external data
 
   // Update filters when any filter option changes
   useEffect(() => {
@@ -19,8 +20,8 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
       radius: radius
     };
     
-    onFilterChange(filters);
-  }, [locationType, ratingMin, radius, onFilterChange]);
+    onFilterChange(filters, includeExternal);
+  }, [locationType, ratingMin, radius, includeExternal, onFilterChange]);
 
   return (
     <div className="filter-controls">
@@ -82,6 +83,23 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
           onChange={(e) => setRadius(parseInt(e.target.value))}
           className="slider"
         />
+      </div>
+      
+      <div className="filter-section">
+        <label>Data Sources</label>
+        <div className="checkbox-group">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={includeExternal}
+              onChange={(e) => setIncludeExternal(e.target.checked)}
+            />
+            Include External Data
+          </label>
+          <div className="help-text">
+            Show data from Refuge Restrooms, GoWeeWee, and police stations CSV
+          </div>
+        </div>
       </div>
     </div>
   );

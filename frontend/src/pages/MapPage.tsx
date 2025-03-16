@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Map from '../components/Map';
+import MapComponent from '../components/Map';
 import FilterControls from '../components/FilterControls';
 import { FilterOptions } from '../types';
+import { refreshExternalData } from '../services/api';
 import '../styles/MapPage.css';
 
 const MapPage: React.FC = () => {
@@ -10,6 +11,7 @@ const MapPage: React.FC = () => {
     rating_min: 0,
     radius: 10
   });
+  const [includeExternal, setIncludeExternal] = useState<boolean>(true);
   
   // Track if component is mounted
   const isMounted = useRef(true);
@@ -28,11 +30,17 @@ const MapPage: React.FC = () => {
     };
   }, []);
 
-  const handleFilterChange = (newFilters: FilterOptions) => {
+  const handleFilterChange = (newFilters: FilterOptions, includeExt: boolean = true) => {
     if (isMounted.current) {
       setFilters(newFilters);
+      setIncludeExternal(includeExt);
     }
   };
+
+  // Refresh external data when the component mounts
+  useEffect(() => {
+    refreshExternalData();
+  }, []);
 
   return (
     <div className="map-page">
@@ -40,7 +48,7 @@ const MapPage: React.FC = () => {
         <FilterControls onFilterChange={handleFilterChange} />
       </div>
       <div className="map-container">
-        <Map filters={filters} />
+        <MapComponent filters={filters} includeExternal={includeExternal} />
       </div>
     </div>
   );

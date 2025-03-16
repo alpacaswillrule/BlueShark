@@ -45,9 +45,10 @@ const mapStyles = [
 
 interface MapProps {
   filters: FilterOptions;
+  includeExternal?: boolean;
 }
 
-const Map: React.FC<MapProps> = ({ filters }) => {
+const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey
@@ -59,20 +60,20 @@ const Map: React.FC<MapProps> = ({ filters }) => {
   const [locationRatings, setLocationRatings] = useState<Rating[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Fetch locations when filters change
+  // Fetch locations when filters or includeExternal change
   useEffect(() => {
     const fetchLocations = async () => {
       if (userLocation) {
-        const data = await getLocations(filters, userLocation.lat, userLocation.lng);
+        const data = await getLocations(filters, userLocation.lat, userLocation.lng, includeExternal);
         setLocations(data);
       } else {
-        const data = await getLocations(filters);
+        const data = await getLocations(filters, undefined, undefined, includeExternal);
         setLocations(data);
       }
     };
 
     fetchLocations();
-  }, [filters, userLocation]);
+  }, [filters, userLocation, includeExternal]);
 
   // Get user's location
   useEffect(() => {
@@ -135,22 +136,76 @@ const Map: React.FC<MapProps> = ({ filters }) => {
     return (totalWeight / location.total_ratings + 1) / 2 * 5;
   };
 
-  // Get marker icon based on location type
-  const getMarkerIcon = (type: string): string => {
+  // Get marker icon based on location type and source
+  const getMarkerIcon = (location: Location): google.maps.Icon | string => {
+    const { type, source } = location;
+    
     // Try to use custom icons from the custom_icons folder
     // Fall back to default markers if custom icons are not available
-    const customIconPath = `/custom_icons/${type}.png`;
+    let iconName = type;
+    
+    // Add source suffix for external data
+    if (source) {
+      iconName = `${type}_${source}`;
+    }
+    
+    const customIconPath = `/custom_icons/${iconName}.png`;
     
     // Create an image element to check if the custom icon exists
     const img = new Image();
     img.src = customIconPath;
     
-    // If the custom icon exists, use it
+    // If the custom icon exists, use it with custom size for user-submitted locations
     if (img.complete) {
+      // For user-submitted locations, make the icons larger
+      if (!source) {
+        return {
+          url: customIconPath,
+          scaledSize: new google.maps.Size(40, 40), // Larger size for user-submitted locations
+          origin: new google.maps.Point(0, 0),
+          anchor: new google.maps.Point(20, 40)
+        };
+      }
       return customIconPath;
     }
     
-    // Otherwise, use default markers
+    // For user-submitted locations, make the default icons larger
+    if (!source) {
+      let iconUrl = '';
+      
+      // Default markers by type
+      switch (type) {
+        case 'restroom':
+          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
+          break;
+        case 'restaurant':
+          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/green-dot.png';
+          break;
+        case 'police':
+          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
+          break;
+        default:
+          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png';
+      }
+      
+      return {
+        url: iconUrl,
+        scaledSize: new google.maps.Size(40, 40), // Larger size for user-submitted locations
+        origin: new google.maps.Point(0, 0),
+        anchor: new google.maps.Point(20, 40)
+      };
+    }
+    
+    // Otherwise, use default markers with different colors based on source
+    if (source === 'refuge_restrooms' && type === 'restroom') {
+      return 'http://maps.google.com/mapfiles/ms/icons/lightblue-dot.png';
+    } else if (source === 'goweewee' && type === 'restroom') {
+      return 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
+    } else if (source === 'csv' && type === 'police') {
+      return 'http://maps.google.com/mapfiles/ms/icons/pink-dot.png';
+    }
+    
+    // Default markers by type
     switch (type) {
       case 'restroom':
         return 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
@@ -177,7 +232,7 @@ const Map: React.FC<MapProps> = ({ filters }) => {
         <Marker
           key={location.id}
           position={{ lat: location.lat, lng: location.lng }}
-          icon={getMarkerIcon(location.type)}
+          icon={getMarkerIcon(location)}
           onClick={() => setSelectedLocation(location)}
         />
       ))}
@@ -191,15 +246,31 @@ const Map: React.FC<MapProps> = ({ filters }) => {
           <div className="info-window">
             <h3>{selectedLocation.name}</h3>
             <p>{selectedLocation.address}</p>
+            
+            {selectedLocation.source && (
+              <div className="source-tag">
+                Source: {selectedLocation.source.replace('_', ' ')}
+              </div>
+            )}
+            
+            {selectedLocation.type === 'restroom' && (
+              <div className="restroom-details">
+                {selectedLocation.ada_accessible && <div className="tag ada">ADA Accessible</div>}
+                {selectedLocation.unisex && <div className="tag unisex">Unisex</div>}
+              </div>
+            )}
+            
             <p>
               Rating: {calculateRating(selectedLocation).toFixed(1)} / 5
               ({selectedLocation.total_ratings} ratings)
             </p>
+            
             <div className="rating-breakdown">
               <div>Positive: {selectedLocation.positive_count}</div>
               <div>Neutral: {selectedLocation.neutral_count}</div>
               <div>Negative: {selectedLocation.negative_count}</div>
             </div>
+            
             <h4>Recent Comments:</h4>
             <div className="comments">
               {locationRatings.length > 0 ? (

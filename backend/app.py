@@ -3,11 +3,27 @@ from flask_cors import CORS
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
+import schedule
+import threading
+import time
+import logging
 from datetime import datetime
 import math
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Import Firebase configuration
 from firebase_config import cred
+from external_apis import (
+    get_refuge_restrooms,
+    get_goweewee_restrooms,
+    load_police_stations_from_csv,
+    get_all_external_locations,
+    save_external_locations_to_firebase,
+    update_all_external_locations
+)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -15,6 +31,28 @@ CORS(app)  # Enable CORS for all routes
 
 # Initialize Firestore DB
 db = firestore.client()
+
+# Schedule periodic updates of external data
+def run_scheduler():
+    """Run the scheduler in a separate thread."""
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+# Schedule the update_all_external_locations function to run daily
+schedule.every(24).hours.do(lambda: update_all_external_locations(db))
+
+# Start the scheduler in a separate thread
+scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+scheduler_thread.start()
+
+# Run an initial update of external locations
+try:
+    update_all_external_locations(db)
+    logger.info("Initial external locations update completed")
+except Exception as e:
+    logger.error(f"Error during initial external locations update: {e}")
+    logger.info("External data will still be available via the API endpoints")
 
 # Calculate distance between two points using Haversine formula
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -40,53 +78,100 @@ def get_locations():
         radius = float(request.args.get('radius', 0))
         user_lat = request.args.get('lat')
         user_lng = request.args.get('lng')
+        include_external = request.args.get('include_external', 'true').lower() == 'true'
         
-        # Query Firestore
-        locations_ref = db.collection('locations')
-        query = locations_ref
-        
-        # Apply type filter if provided
-        if location_type and location_type != 'all':
-            query = query.where('type', '==', location_type)
-            
-        # Execute query
+        # Initialize locations list
         locations = []
-        for doc in query.stream():
-            location = doc.to_dict()
-            location['id'] = doc.id
+        
+        try:
+            # Query Firestore for user-submitted locations
+            locations_ref = db.collection('locations')
+            query = locations_ref
             
-            # Calculate normalized rating (0-5 scale)
-            if location.get('total_ratings', 0) > 0:
-                positive_weight = location.get('positive_count', 0)
-                negative_weight = -1 * location.get('negative_count', 0)
-                total_weight = positive_weight + negative_weight
-                normalized_rating = (total_weight / location['total_ratings'] + 1) / 2 * 5
+            # Apply type filter if provided
+            if location_type and location_type != 'all':
+                query = query.where('type', '==', location_type)
                 
-                # Filter by minimum rating
-                if normalized_rating < rating_min:
+            # Execute query
+            for doc in query.stream():
+                location = doc.to_dict()
+                location['id'] = doc.id
+                
+                # Skip external locations if not requested
+                if not include_external and location.get('source'):
                     continue
-            elif rating_min > 0:
-                # Skip locations with no ratings if minimum rating is set
-                continue
                 
-            # Filter by distance if user location is provided
-            if user_lat and user_lng and radius > 0:
-                try:
-                    user_lat = float(user_lat)
-                    user_lng = float(user_lng)
-                    distance = calculate_distance(
-                        user_lat, user_lng, 
-                        location.get('lat', 0), location.get('lng', 0)
-                    )
-                    if distance > radius:
-                        continue
-                except (ValueError, TypeError):
-                    pass  # Skip distance calculation if coordinates are invalid
+                # Calculate normalized rating (0-5 scale)
+                if location.get('total_ratings', 0) > 0:
+                    positive_weight = location.get('positive_count', 0)
+                    negative_weight = -1 * location.get('negative_count', 0)
+                    total_weight = positive_weight + negative_weight
+                    normalized_rating = (total_weight / location['total_ratings'] + 1) / 2 * 5
                     
-            locations.append(location)
+                    # Filter by minimum rating
+                    if normalized_rating < rating_min:
+                        continue
+                elif rating_min > 0 and not location.get('source'):
+                    # Skip user-submitted locations with no ratings if minimum rating is set
+                    # But keep external locations even if they have no ratings
+                    continue
+                    
+                # Filter by distance if user location is provided
+                if user_lat and user_lng and radius > 0:
+                    try:
+                        user_lat_float = float(user_lat)
+                        user_lng_float = float(user_lng)
+                        distance = calculate_distance(
+                            user_lat_float, user_lng_float, 
+                            location.get('lat', 0), location.get('lng', 0)
+                        )
+                        if distance > radius:
+                            continue
+                    except (ValueError, TypeError):
+                        pass  # Skip distance calculation if coordinates are invalid
+                        
+                locations.append(location)
+        except Exception as e:
+            logger.error(f"Error querying Firestore: {e}")
+            # Continue with external data even if Firestore fails
+        
+        # If external data is requested and we have user coordinates, fetch it directly
+        if include_external and user_lat and user_lng:
+            try:
+                user_lat_float = float(user_lat)
+                user_lng_float = float(user_lng)
+                radius_val = float(radius) if radius > 0 else 10
+                
+                # Get external locations
+                external_data = get_all_external_locations(user_lat_float, user_lng_float, int(radius_val))
+                
+                # Add external locations to the results
+                for source, source_locations in external_data.items():
+                    for location in source_locations:
+                        # Apply type filter if provided
+                        if location_type and location_type != 'all' and location.get('type') != location_type:
+                            continue
+                            
+                        # Filter by distance if radius is provided
+                        if radius > 0:
+                            distance = calculate_distance(
+                                user_lat_float, user_lng_float,
+                                location.get('lat', 0), location.get('lng', 0)
+                            )
+                            if distance > radius_val:
+                                continue
+                                
+                        # Add a unique ID if not present
+                        if 'id' not in location:
+                            location['id'] = f"{source}-{location.get('external_id', '')}"
+                            
+                        locations.append(location)
+            except Exception as e:
+                logger.error(f"Error fetching external locations: {e}")
             
         return jsonify(locations)
     except Exception as e:
+        logger.error(f"Error in get_locations: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/ratings/<location_id>', methods=['GET'])
@@ -102,6 +187,99 @@ def get_ratings(location_id):
             ratings.append(rating)
             
         return jsonify(ratings)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/external-locations', methods=['GET'])
+def get_external_locations():
+    try:
+        # Get parameters
+        lat = request.args.get('lat')
+        lng = request.args.get('lng')
+        radius = float(request.args.get('radius', 10))
+        
+        if not lat or not lng:
+            return jsonify({'error': 'Latitude and longitude are required'}), 400
+            
+        lat = float(lat)
+        lng = float(lng)
+        
+        # Get external locations
+        external_locations = get_all_external_locations(lat, lng, radius)
+        
+        # Log the number of locations from each source
+        for source, locations in external_locations.items():
+            logger.info(f"Found {len(locations)} locations from {source}")
+        
+        # Flatten the results
+        all_locations = []
+        for source, locations in external_locations.items():
+            all_locations.extend(locations)
+            
+        # Save to Firebase in the background
+        threading.Thread(target=save_external_locations_to_firebase, args=(db, all_locations), daemon=True).start()
+        
+        return jsonify(all_locations)
+    except Exception as e:
+        logger.error(f"Error in get_external_locations: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/debug/external-locations', methods=['GET'])
+def debug_external_locations():
+    """Debug endpoint to get external locations without saving to Firebase."""
+    try:
+        # Get parameters
+        lat = request.args.get('lat', '42.3601')  # Default to Boston
+        lng = request.args.get('lng', '-71.0589')
+        source = request.args.get('source')  # Optional source filter
+        
+        lat = float(lat)
+        lng = float(lng)
+        
+        # Get external locations
+        if source == 'refuge':
+            locations = get_refuge_restrooms(lat, lng, per_page=50)
+            return jsonify({
+                'source': 'refuge_restrooms',
+                'count': len(locations),
+                'locations': locations
+            })
+        elif source == 'goweewee':
+            locations = get_goweewee_restrooms(lat, lng)
+            return jsonify({
+                'source': 'goweewee',
+                'count': len(locations),
+                'locations': locations
+            })
+        elif source == 'police':
+            locations = load_police_stations_from_csv()
+            return jsonify({
+                'source': 'police_stations',
+                'count': len(locations),
+                'locations': locations
+            })
+        else:
+            # Get all sources
+            external_locations = get_all_external_locations(lat, lng)
+            result = {}
+            
+            for source, locations in external_locations.items():
+                result[source] = {
+                    'count': len(locations),
+                    'sample': locations[:5] if locations else []
+                }
+                
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in debug_external_locations: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/refresh-external-data', methods=['POST'])
+def refresh_external_data():
+    try:
+        # Run the update in a background thread
+        threading.Thread(target=update_all_external_locations, args=(db,), daemon=True).start()
+        return jsonify({'success': True, 'message': 'External data refresh started'}), 202
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
