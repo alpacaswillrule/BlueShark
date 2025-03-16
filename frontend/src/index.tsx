@@ -4,10 +4,6 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
-// Load environment variables
-// Make Google Maps API key available to the app
-process.env.REACT_APP_API_ENV_KEY = process.env.API_ENV_KEY;
-
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );

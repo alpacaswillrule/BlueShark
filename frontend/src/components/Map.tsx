@@ -5,7 +5,7 @@ import { getLocations, getRatings } from '../services/api';
 import '../styles/InfoWindow.css';
 
 // Get Google Maps API key from environment variables
-const googleMapsApiKey = process.env.REACT_APP_API_ENV_KEY || '';
+const googleMapsApiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '';
 
 // Map container style
 const containerStyle = {
@@ -111,8 +111,18 @@ const Map: React.FC<MapProps> = ({ filters }) => {
   }, []);
 
   const onUnmount = useCallback(() => {
+    // Clean up Google Maps resources
+    if (map && window.google?.maps?.event) {
+      // Remove all event listeners
+      window.google.maps.event.clearInstanceListeners(map);
+    }
+    
+    // Clear state
     setMap(null);
-  }, []);
+    setLocations([]);
+    setSelectedLocation(null);
+    setLocationRatings([]);
+  }, [map]);
 
   // Calculate the normalized rating (0-5 scale)
   const calculateRating = (location: Location): number => {

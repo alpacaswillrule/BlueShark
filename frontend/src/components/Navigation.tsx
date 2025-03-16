@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import '../styles/Navigation.css';
 
 const Navigation: React.FC = () => {
@@ -18,9 +18,9 @@ const Navigation: React.FC = () => {
     <nav className="navigation">
       <div className="nav-container">
         <div className="logo">
-          <Link to="/" onClick={closeMenu}>
+          <NavLink to="/" onClick={closeMenu}>
             <span className="logo-text">Blue Shark</span>
-          </Link>
+          </NavLink>
         </div>
 
         <button 
@@ -35,31 +35,31 @@ const Navigation: React.FC = () => {
 
         <ul className={`nav-links ${menuOpen ? 'active' : ''}`}>
           <li>
-            <Link 
+            <NavLink 
               to="/" 
-              className={location.pathname === '/' ? 'active' : ''} 
+              className={({ isActive }) => isActive ? 'active' : ''} 
               onClick={closeMenu}
             >
               Map
-            </Link>
+            </NavLink>
           </li>
           <li>
-            <Link 
+            <NavLink 
               to="/report" 
-              className={location.pathname === '/report' ? 'active' : ''} 
+              className={({ isActive }) => isActive ? 'active' : ''} 
               onClick={closeMenu}
             >
               Submit Rating
-            </Link>
+            </NavLink>
           </li>
           <li>
-            <Link 
+            <NavLink 
               to="/about" 
-              className={location.pathname === '/about' ? 'active' : ''} 
+              className={({ isActive }) => isActive ? 'active' : ''} 
               onClick={closeMenu}
             >
               About
-            </Link>
+            </NavLink>
           </li>
         </ul>
       </div>
