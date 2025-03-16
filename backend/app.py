@@ -1,5 +1,7 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS, cross_origin
+from fastapi import FastAPI, Request, Response, BackgroundTasks, HTTPException, Query, Path, Body
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from typing import List, Dict, Any, Optional, Union
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
@@ -25,10 +27,17 @@ from external_apis import (
     update_all_external_locations
 )
 
-# Initialize Flask app
-app = Flask(__name__)
-# Enable CORS for all routes with proper configuration
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+# Initialize FastAPI app
+app = FastAPI(title="SafeRoute API")
+
+# Enable CORS for all routes
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Initialize Firestore DB
 db = firestore.client()
@@ -43,18 +52,21 @@ def run_scheduler():
 # Schedule the update_all_external_locations function to run daily
 schedule.every(24).hours.do(lambda: update_all_external_locations(db, max_restrooms=1000))
 
-# Start the scheduler in a separate thread
-scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-scheduler_thread.start()
-
-# Run an initial update of external locations
-try:
-    # Fetch more restrooms (up to 1000) to ensure we have good coverage
-    update_all_external_locations(db, max_restrooms=1000)
-    logger.info("Initial external locations update completed")
-except Exception as e:
-    logger.error(f"Error during initial external locations update: {e}")
-    logger.info("External data will still be available via the API endpoints")
+# Start the scheduler and run initial update on startup
+@app.on_event("startup")
+def startup_event():
+    # Start the scheduler in a separate thread
+    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+    scheduler_thread.start()
+    
+    # Run an initial update of external locations
+    try:
+        # Fetch more restrooms (up to 1000) to ensure we have good coverage
+        update_all_external_locations(db, max_restrooms=1000)
+        logger.info("Initial external locations update completed")
+    except Exception as e:
+        logger.error(f"Error during initial external locations update: {e}")
+        logger.info("External data will still be available via the API endpoints")
 
 # Calculate distance between two points using Haversine formula
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -70,18 +82,24 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     distance = R * c  # Distance in km
     return distance
 
+# FastAPI handles CORS with the middleware we added above
+
 # API Routes
-@app.route('/api/locations', methods=['GET', 'OPTIONS'])
-@cross_origin()
-def get_locations():
+@app.get('/api/locations')
+async def get_locations(
+    type: Optional[str] = None,
+    rating_min: float = 0,
+    radius: float = 0,
+    lat: Optional[str] = None,
+    lng: Optional[str] = None,
+    include_external: bool = True
+):
+    print("Handling GET request for /api/locations")  # Debug log
     try:
-        # Get filter parameters
-        location_type = request.args.get('type')
-        rating_min = float(request.args.get('rating_min', 0))
-        radius = float(request.args.get('radius', 0))
-        user_lat = request.args.get('lat')
-        user_lng = request.args.get('lng')
-        include_external = request.args.get('include_external', 'true').lower() == 'true'
+        # Map parameters to the names used in the original code
+        location_type = type
+        user_lat = lat
+        user_lng = lng
         
         # Initialize locations list
         locations = []
@@ -192,14 +210,15 @@ def get_locations():
                 logger.exception(e)  # Log the full stack trace
             
         logger.info(f"Returning {len(locations)} total locations")
-        return jsonify(locations)
+        
+        # With FastAPI, we can return the list directly
+        return locations
     except Exception as e:
         logger.error(f"Error in get_locations: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/api/ratings/<location_id>', methods=['GET', 'OPTIONS'])
-@cross_origin()
-def get_ratings(location_id):
+@app.get('/api/ratings/{location_id}')
+async def get_ratings(location_id: str):
     try:
         ratings_ref = db.collection('ratings')
         query = ratings_ref.where('location_id', '==', location_id).order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10)
@@ -210,27 +229,26 @@ def get_ratings(location_id):
             rating['id'] = doc.id
             ratings.append(rating)
             
-        return jsonify(ratings)
+        return ratings
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in get_ratings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/api/external-locations', methods=['GET', 'OPTIONS'])
-@cross_origin()
-def get_external_locations():
+@app.get('/api/external-locations')
+async def get_external_locations(
+    lat: Optional[str] = None,
+    lng: Optional[str] = None,
+    radius: float = 10
+):
     try:
-        # Get parameters
-        lat = request.args.get('lat')
-        lng = request.args.get('lng')
-        radius = float(request.args.get('radius', 10))
-        
         if not lat or not lng:
-            return jsonify({'error': 'Latitude and longitude are required'}), 400
+            raise HTTPException(status_code=400, detail="Latitude and longitude are required")
             
-        lat = float(lat)
-        lng = float(lng)
+        lat_float = float(lat)
+        lng_float = float(lng)
         
         # Get external locations
-        external_locations = get_all_external_locations(lat, lng, radius)
+        external_locations = get_all_external_locations(lat_float, lng_float, radius)
         
         # Log the number of locations from each source
         for source, locations in external_locations.items():
@@ -244,77 +262,78 @@ def get_external_locations():
         # Save to Firebase in the background
         threading.Thread(target=save_external_locations_to_firebase, args=(db, all_locations), daemon=True).start()
         
-        return jsonify(all_locations)
+        return all_locations
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid latitude or longitude format")
     except Exception as e:
         logger.error(f"Error in get_external_locations: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/api/debug/external-locations', methods=['GET', 'OPTIONS'])
-@cross_origin()
-def debug_external_locations():
+@app.get('/api/debug/external-locations')
+async def debug_external_locations(
+    lat: str = '42.3601',  # Default to Boston
+    lng: str = '-71.0589',
+    source: Optional[str] = None
+):
     """Debug endpoint to get external locations without saving to Firebase."""
     try:
-        # Get parameters
-        lat = request.args.get('lat', '42.3601')  # Default to Boston
-        lng = request.args.get('lng', '-71.0589')
-        source = request.args.get('source')  # Optional source filter
-        
-        lat = float(lat)
-        lng = float(lng)
+        lat_float = float(lat)
+        lng_float = float(lng)
         
         # Get external locations
         if source == 'refuge':
-            locations = get_refuge_restrooms(lat, lng, per_page=50)
-            return jsonify({
+            locations = get_refuge_restrooms(lat_float, lng_float, per_page=50)
+            return {
                 'source': 'refuge_restrooms',
                 'count': len(locations),
                 'locations': locations
-            })
+            }
         elif source == 'goweewee':
-            locations = get_goweewee_restrooms(lat, lng)
-            return jsonify({
+            locations = get_goweewee_restrooms(lat_float, lng_float)
+            return {
                 'source': 'goweewee',
                 'count': len(locations),
                 'locations': locations
-            })
+            }
         elif source == 'police':
             locations = load_police_stations_from_csv()
-            return jsonify({
+            return {
                 'source': 'police_stations',
                 'count': len(locations),
                 'locations': locations
-            })
+            }
         else:
             # Get all sources
-            external_locations = get_all_external_locations(lat, lng)
+            external_locations = get_all_external_locations(lat_float, lng_float)
             result = {}
             
-            for source, locations in external_locations.items():
-                result[source] = {
+            for source_name, locations in external_locations.items():
+                result[source_name] = {
                     'count': len(locations),
                     'sample': locations[:5] if locations else []
                 }
-                
-            return jsonify(result)
+            
+            return result
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid latitude or longitude format")
     except Exception as e:
         logger.error(f"Error in debug_external_locations: {e}")
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/api/refresh-external-data', methods=['POST', 'OPTIONS'])
-@cross_origin()
-def refresh_external_data():
+@app.post('/api/refresh-external-data', status_code=202)
+async def refresh_external_data():
     try:
         # Run the update in a background thread
         threading.Thread(target=update_all_external_locations, args=(db,), daemon=True).start()
-        return jsonify({'success': True, 'message': 'External data refresh started'}), 202
+        
+        return {'success': True, 'message': 'External data refresh started'}
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in refresh_external_data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/api/ratings', methods=['POST', 'OPTIONS'])
-@cross_origin()
-def submit_rating():
+@app.post('/api/ratings', status_code=201)
+async def submit_rating(data: Dict[str, Any] = Body(...)):
     try:
-        data = request.json
         rating_data = data.get('rating', {})
         is_new_location = data.get('isNewLocation', False)
         location_data = data.get('locationData', {})
@@ -343,7 +362,7 @@ def submit_rating():
             # Update the rating with the new location ID
             rating_ref.update({'location_id': location_ref.id})
             
-            return jsonify({'success': True, 'location_id': location_ref.id}), 201
+            return {'success': True, 'location_id': location_ref.id}
         else:
             # Update existing location
             location_ref = db.collection('locations').document(rating_data.get('location_id'))
@@ -365,11 +384,14 @@ def submit_rating():
                     
                 location_ref.update(updates)
                 
-                return jsonify({'success': True}), 201
+                return {'success': True}
             else:
-                return jsonify({'error': 'Location not found'}), 404
+                raise HTTPException(status_code=404, detail="Location not found")
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in submit_rating: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    print("Starting FastAPI server with CORS enabled...")
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
