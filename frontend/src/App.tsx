@@ -4,6 +4,10 @@ import Navigation from './components/Navigation';
 import MapPage from './pages/MapPage';
 import ReportPage from './pages/ReportPage';
 import AboutPage from './pages/AboutPage';
+import ResourcesPage from './pages/ResourcesPage';
+import LegalRightsPage from './pages/LegalRightsPage';
+import SupportResourcesPage from './pages/SupportResourcesPage';
+import ResearchPage from './pages/ResearchPage';
 import './App.css';
 
 // Create a wrapper component that uses useLocation
@@ -23,6 +27,10 @@ const AppContent = () => {
           <Route path="/" element={<MapPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/resources" element={<ResourcesPage />} />
+          <Route path="/resources/legal" element={<LegalRightsPage />} />
+          <Route path="/resources/support" element={<SupportResourcesPage />} />
+          <Route path="/resources/research" element={<ResearchPage />} />
         </Routes>
       </main>
     </div>

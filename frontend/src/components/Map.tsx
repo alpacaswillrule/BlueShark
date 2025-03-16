@@ -332,7 +332,7 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
     fetchLocations();
   }, [fetchLocations]);
 
-  // Fetch locations only on initial mount
+  // Fetch locations on initial mount
   useEffect(() => {
     console.log('INITIAL FETCH TRIGGERED');
     console.log('Fetching all locations on mount');
@@ -342,6 +342,17 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
     
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  
+  // Fetch locations when filters change
+  useEffect(() => {
+    console.log('FILTER CHANGE DETECTED');
+    console.log('Filters:', filters);
+    console.log('Include external:', includeExternal);
+    
+    // Fetch locations with new filters
+    // The fetchLocations function already handles clearing the cache when filter type changes
+    fetchLocations();
+  }, [filters, includeExternal, fetchLocations]);
 
   // Get user's location
   useEffect(() => {
@@ -511,31 +522,6 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
         </span>
       </div>
       
-      {/* Refresh button */}
-      <div 
-        style={{
-          position: 'absolute',
-          top: '60px',
-          right: '10px',
-          zIndex: 1000,
-          backgroundColor: '#4CAF50', // Green background
-          color: 'white',
-          borderRadius: '4px',
-          padding: '8px',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-          cursor: isLoading ? 'wait' : 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: isLoading ? 0.7 : 1
-        }}
-        onClick={isLoading ? undefined : refreshData}
-        title={isLoading ? "Loading..." : "Refresh Data"}
-      >
-        <span style={{ fontWeight: 'bold' }}>
-          {isLoading ? 'Loading...' : 'Refresh Data'}
-        </span>
-      </div>
       
       {/* Add CSS animation for the loading spinner */}
       <style>

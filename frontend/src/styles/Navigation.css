@@ -59,7 +59,7 @@
 }
 
 .nav-links a.active {
-  color: #FFC0CB; /* Pink */
+  color: #FFFFFF; /* White */
 }
 
 .nav-links a.active::after {
@@ -69,7 +69,7 @@
   left: 0;
   width: 100%;
   height: 3px;
-  background-color: #FFC0CB; /* Pink */
+  background-color: #FFFFFF; /* White */
   border-radius: 2px;
 }
 

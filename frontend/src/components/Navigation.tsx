@@ -54,6 +54,15 @@ const Navigation: React.FC = () => {
           </li>
           <li>
             <NavLink 
+              to="/resources" 
+              className={({ isActive }) => isActive ? 'active' : ''} 
+              onClick={closeMenu}
+            >
+              Resources
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
               to="/about" 
               className={({ isActive }) => isActive ? 'active' : ''} 
               onClick={closeMenu}

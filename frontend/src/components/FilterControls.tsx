@@ -11,13 +11,10 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
   const [ratingMin, setRatingMin] = useState<number>(0);
   const [radius, setRadius] = useState<number>(10); // Default 10km radius
   const [includeExternal, setIncludeExternal] = useState<boolean>(true); // Default to include external data
-  const [filterChangeCount, setFilterChangeCount] = useState<number>(0); // Track filter changes for visual feedback
-
   // Handle location type change with direct feedback
   const handleLocationTypeChange = (type: MapViewType) => {
     console.log(`Changing location type to: ${type}`);
     setLocationType(type);
-    setFilterChangeCount(prev => prev + 1);
     
     // Directly trigger filter change for immediate effect
     const filters: FilterOptions = {
@@ -31,7 +28,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
 
   // Update filters when any filter option changes
   useEffect(() => {
-    console.log(`Filter effect triggered: ${filterChangeCount}`);
+    console.log(`Filter effect triggered`);
     
     const filters: FilterOptions = {
       type: locationType === 'all' ? null : locationType,
@@ -155,7 +152,6 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
           value={ratingMin}
           onChange={(e) => {
             setRatingMin(parseFloat(e.target.value));
-            setFilterChangeCount(prev => prev + 1);
           }}
           className="slider"
         />
@@ -172,7 +168,6 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
           value={radius}
           onChange={(e) => {
             setRadius(parseInt(e.target.value));
-            setFilterChangeCount(prev => prev + 1);
           }}
           className="slider"
         />
@@ -187,7 +182,6 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
               checked={includeExternal}
               onChange={(e) => {
                 setIncludeExternal(e.target.checked);
-                setFilterChangeCount(prev => prev + 1);
               }}
             />
             Include External Data
@@ -214,29 +208,6 @@ const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }) => {
         `}
       </style>
       
-      {/* Filter change indicator */}
-      <div className="filter-status">
-        <div style={{ 
-          marginTop: '10px', 
-          padding: '8px', 
-          backgroundColor: '#f0f0f0',
-          borderRadius: '4px',
-          textAlign: 'center',
-          animation: filterChangeCount > 0 ? 'flash 0.5s' : 'none'
-        }}>
-          Filters applied: {filterChangeCount}
-        </div>
-      </div>
-      
-      {/* Add flash animation */}
-      <style>
-        {`
-          @keyframes flash {
-            0% { background-color: #4CAF50; color: white; }
-            100% { background-color: #f0f0f0; color: black; }
-          }
-        `}
-      </style>
     </div>
   );
 };

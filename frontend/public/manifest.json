@@ -1,19 +1,19 @@
 {
   "short_name": "Blue Shark",
-  "name": "Blue Shark - Queer-Friendly Spaces",
+  "name": "Blue Shark - LGBTQ+ Resources",
   "icons": [
     {
-      "src": "favicon.ico",
+      "src": "custom_icons/blahaj.jpg",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "logo192.png",
+      "src": "custom_icons/blahaj.jpg",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "logo512.png",
+      "src": "custom_icons/blahaj.jpg",
       "type": "image/png",
       "sizes": "512x512"
     }
