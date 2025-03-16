@@ -1,5 +1,4 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Flask, request, jsonify, make_response
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
@@ -27,7 +26,18 @@ from external_apis import (
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+
+# CORS helper functions
+def _build_cors_preflight_response():
+    response = make_response()
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add('Access-Control-Allow-Headers', "*")
+    response.headers.add('Access-Control-Allow-Methods', "*")
+    return response
+
+def _corsify_actual_response(response):
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    return response
 
 # Initialize Firestore DB
 db = firestore.client()
@@ -40,7 +50,7 @@ def run_scheduler():
         time.sleep(1)
 
 # Schedule the update_all_external_locations function to run daily
-schedule.every(24).hours.do(lambda: update_all_external_locations(db))
+schedule.every(24).hours.do(lambda: update_all_external_locations(db, max_restrooms=1000))
 
 # Start the scheduler in a separate thread
 scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
@@ -48,7 +58,8 @@ scheduler_thread.start()
 
 # Run an initial update of external locations
 try:
-    update_all_external_locations(db)
+    # Fetch more restrooms (up to 1000) to ensure we have good coverage
+    update_all_external_locations(db, max_restrooms=1000)
     logger.info("Initial external locations update completed")
 except Exception as e:
     logger.error(f"Error during initial external locations update: {e}")
@@ -69,8 +80,10 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     return distance
 
 # API Routes
-@app.route('/api/locations', methods=['GET'])
+@app.route('/api/locations', methods=['GET', 'OPTIONS'])
 def get_locations():
+    if request.method == "OPTIONS":
+        return _build_cors_preflight_response()
     try:
         # Get filter parameters
         location_type = request.args.get('type')
@@ -142,14 +155,28 @@ def get_locations():
                 user_lng_float = float(user_lng)
                 radius_val = float(radius) if radius > 0 else 10
                 
+                logger.info(f"Fetching external locations with lat={user_lat_float}, lng={user_lng_float}, radius={radius_val}")
+                
                 # Get external locations
                 external_data = get_all_external_locations(user_lat_float, user_lng_float, int(radius_val))
                 
+                # Log the number of locations from each source
+                for source, source_locations in external_data.items():
+                    logger.info(f"Found {len(source_locations)} locations from {source}")
+                    # Log a sample of locations from each source
+                    if len(source_locations) > 0:
+                        sample = source_locations[0]
+                        logger.info(f"Sample {source} location: name={sample.get('name')}, lat={sample.get('lat')}, lng={sample.get('lng')}")
+                
                 # Add external locations to the results
+                external_count = 0
+                filtered_out = 0
+                
                 for source, source_locations in external_data.items():
                     for location in source_locations:
                         # Apply type filter if provided
                         if location_type and location_type != 'all' and location.get('type') != location_type:
+                            filtered_out += 1
                             continue
                             
                         # Filter by distance if radius is provided
@@ -159,6 +186,7 @@ def get_locations():
                                 location.get('lat', 0), location.get('lng', 0)
                             )
                             if distance > radius_val:
+                                filtered_out += 1
                                 continue
                                 
                         # Add a unique ID if not present
@@ -166,16 +194,25 @@ def get_locations():
                             location['id'] = f"{source}-{location.get('external_id', '')}"
                             
                         locations.append(location)
+                        external_count += 1
+                
+                logger.info(f"Added {external_count} external locations to response, filtered out {filtered_out}")
             except Exception as e:
                 logger.error(f"Error fetching external locations: {e}")
+                logger.exception(e)  # Log the full stack trace
             
-        return jsonify(locations)
+        logger.info(f"Returning {len(locations)} total locations")
+        response = jsonify(locations)
+        return _corsify_actual_response(response)
     except Exception as e:
         logger.error(f"Error in get_locations: {e}")
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        return _corsify_actual_response(response), 500
 
-@app.route('/api/ratings/<location_id>', methods=['GET'])
+@app.route('/api/ratings/<location_id>', methods=['GET', 'OPTIONS'])
 def get_ratings(location_id):
+    if request.method == "OPTIONS":
+        return _build_cors_preflight_response()
     try:
         ratings_ref = db.collection('ratings')
         query = ratings_ref.where('location_id', '==', location_id).order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10)
@@ -186,12 +223,16 @@ def get_ratings(location_id):
             rating['id'] = doc.id
             ratings.append(rating)
             
-        return jsonify(ratings)
+        response = jsonify(ratings)
+        return _corsify_actual_response(response)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        return _corsify_actual_response(response), 500
 
-@app.route('/api/external-locations', methods=['GET'])
+@app.route('/api/external-locations', methods=['GET', 'OPTIONS'])
 def get_external_locations():
+    if request.method == "OPTIONS":
+        return _build_cors_preflight_response()
     try:
         # Get parameters
         lat = request.args.get('lat')
@@ -199,7 +240,8 @@ def get_external_locations():
         radius = float(request.args.get('radius', 10))
         
         if not lat or not lng:
-            return jsonify({'error': 'Latitude and longitude are required'}), 400
+            response = jsonify({'error': 'Latitude and longitude are required'})
+            return _corsify_actual_response(response), 400
             
         lat = float(lat)
         lng = float(lng)
@@ -219,13 +261,17 @@ def get_external_locations():
         # Save to Firebase in the background
         threading.Thread(target=save_external_locations_to_firebase, args=(db, all_locations), daemon=True).start()
         
-        return jsonify(all_locations)
+        response = jsonify(all_locations)
+        return _corsify_actual_response(response)
     except Exception as e:
         logger.error(f"Error in get_external_locations: {e}")
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        return _corsify_actual_response(response), 500
 
-@app.route('/api/debug/external-locations', methods=['GET'])
+@app.route('/api/debug/external-locations', methods=['GET', 'OPTIONS'])
 def debug_external_locations():
+    if request.method == "OPTIONS":
+        return _build_cors_preflight_response()
     """Debug endpoint to get external locations without saving to Firebase."""
     try:
         # Get parameters
@@ -239,25 +285,28 @@ def debug_external_locations():
         # Get external locations
         if source == 'refuge':
             locations = get_refuge_restrooms(lat, lng, per_page=50)
-            return jsonify({
+            response = jsonify({
                 'source': 'refuge_restrooms',
                 'count': len(locations),
                 'locations': locations
             })
+            return _corsify_actual_response(response)
         elif source == 'goweewee':
             locations = get_goweewee_restrooms(lat, lng)
-            return jsonify({
+            response = jsonify({
                 'source': 'goweewee',
                 'count': len(locations),
                 'locations': locations
             })
+            return _corsify_actual_response(response)
         elif source == 'police':
             locations = load_police_stations_from_csv()
-            return jsonify({
+            response = jsonify({
                 'source': 'police_stations',
                 'count': len(locations),
                 'locations': locations
             })
+            return _corsify_actual_response(response)
         else:
             # Get all sources
             external_locations = get_all_external_locations(lat, lng)
@@ -269,22 +318,30 @@ def debug_external_locations():
                     'sample': locations[:5] if locations else []
                 }
                 
-            return jsonify(result)
+            response = jsonify(result)
+            return _corsify_actual_response(response)
     except Exception as e:
         logger.error(f"Error in debug_external_locations: {e}")
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        return _corsify_actual_response(response), 500
 
-@app.route('/api/refresh-external-data', methods=['POST'])
+@app.route('/api/refresh-external-data', methods=['POST', 'OPTIONS'])
 def refresh_external_data():
+    if request.method == "OPTIONS":
+        return _build_cors_preflight_response()
     try:
         # Run the update in a background thread
         threading.Thread(target=update_all_external_locations, args=(db,), daemon=True).start()
-        return jsonify({'success': True, 'message': 'External data refresh started'}), 202
+        response = jsonify({'success': True, 'message': 'External data refresh started'})
+        return _corsify_actual_response(response), 202
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        return _corsify_actual_response(response), 500
 
-@app.route('/api/ratings', methods=['POST'])
+@app.route('/api/ratings', methods=['POST', 'OPTIONS'])
 def submit_rating():
+    if request.method == "OPTIONS":
+        return _build_cors_preflight_response()
     try:
         data = request.json
         rating_data = data.get('rating', {})
@@ -315,7 +372,8 @@ def submit_rating():
             # Update the rating with the new location ID
             rating_ref.update({'location_id': location_ref.id})
             
-            return jsonify({'success': True, 'location_id': location_ref.id}), 201
+            response = jsonify({'success': True, 'location_id': location_ref.id})
+            return _corsify_actual_response(response), 201
         else:
             # Update existing location
             location_ref = db.collection('locations').document(rating_data.get('location_id'))
@@ -337,11 +395,14 @@ def submit_rating():
                     
                 location_ref.update(updates)
                 
-                return jsonify({'success': True}), 201
+                response = jsonify({'success': True})
+                return _corsify_actual_response(response), 201
             else:
-                return jsonify({'error': 'Location not found'}), 404
+                response = jsonify({'error': 'Location not found'})
+                return _corsify_actual_response(response), 404
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        return _corsify_actual_response(response), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

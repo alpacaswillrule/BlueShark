@@ -26,6 +26,8 @@ export const getLocations = async (
   includeExternal: boolean = true
 ): Promise<Location[]> => {
   try {
+    console.log('getLocations called with:', { filters, userLat, userLng, includeExternal });
+    
     const params: Record<string, any> = { 
       ...filters,
       include_external: includeExternal
@@ -36,8 +38,38 @@ export const getLocations = async (
       params.lng = userLng;
     }
     
+    console.log('Making API request to /locations with params:', params);
+    
     const response = await api.get('/locations', { params });
-    return response.data;
+    
+    console.log('API response received:', response.status);
+    console.log('Response data:', response.data);
+    
+    // Check if the response data is an array
+    if (!Array.isArray(response.data)) {
+      console.error('API response is not an array:', response.data);
+      return [];
+    }
+    
+    // Check if the locations have valid coordinates
+    const validLocations = response.data.filter(location => {
+      const hasValidCoords = 
+        typeof location.lat === 'number' && 
+        typeof location.lng === 'number' &&
+        !isNaN(location.lat) && 
+        !isNaN(location.lng);
+      
+      if (!hasValidCoords) {
+        console.warn('Location missing valid coordinates:', location);
+      }
+      
+      return hasValidCoords;
+    });
+    
+    console.log(`Filtered ${response.data.length - validLocations.length} locations with invalid coordinates`);
+    console.log(`Returning ${validLocations.length} valid locations`);
+    
+    return validLocations;
   } catch (error) {
     console.error('Error getting locations:', error);
     return [];

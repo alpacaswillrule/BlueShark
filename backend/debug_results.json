@@ -1,0 +1,200 @@
+{
+  "refuge_restrooms_raw": [
+    {
+      "id": 25023,
+      "name": "Boston City Hall ",
+      "street": "1 City Hall Square",
+      "city": "Boston",
+      "state": "MA ",
+      "accessible": true,
+      "unisex": true,
+      "directions": "5th floor, Mayor's Offfice to the left of the elevators",
+      "comment": "City Hall is a public building so you can just walk in and take the elevator to the 5th floor! ",
+      "latitude": 42.360331,
+      "longitude": -71.057996,
+      "created_at": "2016-08-26T19:26:27.989Z",
+      "updated_at": "2016-08-26T19:26:27.989Z",
+      "downvote": 0,
+      "upvote": 0,
+      "country": "US",
+      "changing_table": false,
+      "edit_id": 25023,
+      "approved": true,
+      "distance": 0.04883521215555984,
+      "bearing": "75.665886676786"
+    },
+    {
+      "id": 539,
+      "name": "Automatic Public Toilets Faneuil Hall",
+      "street": "Congress Street at 1 City Hall Plaza",
+      "city": "BOSTON",
+      "state": "MA",
+      "accessible": true,
+      "unisex": true,
+      "directions": "Near Haymarket (on the Green/Orange subway lines) and State Steet Station (on the Blue/Orange subway lines)",
+      "comment": "This is one of the pay toilets installed by the City.  They are non-gendered, but be prepared for the stares of tourists (who these toilets were intended for).\r\rStill, I've never had a problem with using them.  In the early evening, when there's not a lot of people waiting, 50 cents or a dollar will get you enough time to take a sponge bath in the sinks and get cleaned up if youre transient.",
+      "latitude": 42.3609,
+      "longitude": -71.0575,
+      "created_at": "2014-02-02T20:49:45.491Z",
+      "updated_at": "2014-02-02T20:49:45.491Z",
+      "downvote": 3,
+      "upvote": 2,
+      "country": "US",
+      "changing_table": false,
+      "edit_id": 539,
+      "approved": true,
+      "distance": 0.0903556178332499,
+      "bearing": "60.255118689174"
+    }
+  ],
+  "police_stations_raw": [
+    {
+      "X": 182497.929499999,
+      "Y": 868705.072700001,
+      "OBJECTID": 1,
+      "NAME": "DOUGLAS POLICE DEPARTMENT",
+      "ADDRESS": "29 DEPOT STREET",
+      "CITY": "DOUGLAS",
+      "STATE": "MA",
+      "ZIP": 1516,
+      "JURISDIC": "LOCAL",
+      "L_SRC": "MEMA",
+      "SOURCE": "MEMA",
+      "L_DATE": "2006/09/12 00:00:00+00"
+    },
+    {
+      "X": 218163.214100003,
+      "Y": 888129.656199999,
+      "OBJECTID": 2,
+      "NAME": "DOVER POLICE DEPARTMENT",
+      "ADDRESS": "3 WALPOLE STREET",
+      "CITY": "DOVER",
+      "STATE": "MA",
+      "ZIP": 2030,
+      "JURISDIC": "LOCAL",
+      "L_SRC": "MEMA",
+      "SOURCE": "MEMA",
+      "L_DATE": "2006/09/12 00:00:00+00"
+    }
+  ],
+  "goweewee_restrooms_raw": [
+    {
+      "name": "GoWeeWee Restroom 1",
+      "type": "restroom",
+      "address": "Mock Address 1, Mock City, MA",
+      "lat": 42.3601,
+      "lng": -71.0589,
+      "source": "goweewee",
+      "external_id": "goweewee-1"
+    },
+    {
+      "name": "GoWeeWee Restroom 2",
+      "type": "restroom",
+      "address": "Mock Address 2, Mock City, MA",
+      "lat": 42.3701,
+      "lng": -71.04889999999999,
+      "source": "goweewee",
+      "external_id": "goweewee-2"
+    },
+    {
+      "name": "GoWeeWee Restroom 3",
+      "type": "restroom",
+      "address": "Mock Address 3, Mock City, MA",
+      "lat": 42.380100000000006,
+      "lng": -71.0389,
+      "source": "goweewee",
+      "external_id": "goweewee-3"
+    }
+  ],
+  "transformed_data": {
+    "refuge_restrooms": [
+      {
+        "name": "Boston City Hall ",
+        "type": "restroom",
+        "address": "1 City Hall Square, Boston, MA ",
+        "lat": 42.360331,
+        "lng": -71.057996,
+        "positive_count": 0,
+        "neutral_count": 0,
+        "negative_count": 0,
+        "total_ratings": 0,
+        "source": "refuge_restrooms",
+        "external_id": "25023",
+        "ada_accessible": true,
+        "unisex": true
+      },
+      {
+        "name": "Automatic Public Toilets Faneuil Hall",
+        "type": "restroom",
+        "address": "Congress Street at 1 City Hall Plaza, BOSTON, MA",
+        "lat": 42.3609,
+        "lng": -71.0575,
+        "positive_count": 0,
+        "neutral_count": 0,
+        "negative_count": 0,
+        "total_ratings": 0,
+        "source": "refuge_restrooms",
+        "external_id": "539",
+        "ada_accessible": true,
+        "unisex": true
+      }
+    ],
+    "police_stations": [
+      {
+        "name": "DOUGLAS POLICE DEPARTMENT",
+        "type": "police",
+        "address": "29 DEPOT STREET, DOUGLAS, MA 1516",
+        "lat": 42.06630420430001,
+        "lng": -71.8646931075,
+        "positive_count": 0,
+        "neutral_count": 0,
+        "negative_count": 0,
+        "total_ratings": 0,
+        "source": "csv",
+        "external_id": "1"
+      },
+      {
+        "name": "DOVER POLICE DEPARTMENT",
+        "type": "police",
+        "address": "3 WALPOLE STREET, DOVER, MA 2030",
+        "lat": 42.241125455799995,
+        "lng": -71.32971383849996,
+        "positive_count": 0,
+        "neutral_count": 0,
+        "negative_count": 0,
+        "total_ratings": 0,
+        "source": "csv",
+        "external_id": "2"
+      }
+    ],
+    "goweewee_restrooms": [
+      {
+        "name": "GoWeeWee Restroom 1",
+        "type": "restroom",
+        "address": "Mock Address 1, Mock City, MA",
+        "lat": 42.3601,
+        "lng": -71.0589,
+        "source": "goweewee",
+        "external_id": "goweewee-1"
+      },
+      {
+        "name": "GoWeeWee Restroom 2",
+        "type": "restroom",
+        "address": "Mock Address 2, Mock City, MA",
+        "lat": 42.3701,
+        "lng": -71.04889999999999,
+        "source": "goweewee",
+        "external_id": "goweewee-2"
+      },
+      {
+        "name": "GoWeeWee Restroom 3",
+        "type": "restroom",
+        "address": "Mock Address 3, Mock City, MA",
+        "lat": 42.380100000000006,
+        "lng": -71.0389,
+        "source": "goweewee",
+        "external_id": "goweewee-3"
+      }
+    ]
+  }
+}

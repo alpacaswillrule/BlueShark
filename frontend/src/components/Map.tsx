@@ -15,8 +15,8 @@ const containerStyle = {
 
 // Default center (can be updated with user's location)
 const defaultCenter = {
-  lat: 40.7128, // New York City
-  lng: -74.0060
+  lat: 42.3601, // Boston
+  lng: -71.0589
 };
 
 // Custom map styles for Blue Shark theme
@@ -63,12 +63,169 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
   // Fetch locations when filters or includeExternal change
   useEffect(() => {
     const fetchLocations = async () => {
-      if (userLocation) {
-        const data = await getLocations(filters, userLocation.lat, userLocation.lng, includeExternal);
+      try {
+        console.log('=== FETCH LOCATIONS START ===');
+        let data: Location[] = [];
+        
+        if (userLocation) {
+          console.log('Fetching locations with user location:', userLocation);
+          console.log('Filters:', filters);
+          console.log('Include external:', includeExternal);
+          
+          data = await getLocations(filters, userLocation.lat, userLocation.lng, includeExternal);
+        } else {
+          console.log('Fetching locations without user location');
+          console.log('Filters:', filters);
+          console.log('Include external:', includeExternal);
+          
+          data = await getLocations(filters, undefined, undefined, includeExternal);
+        }
+        
+        console.log(`Locations fetched: ${data.length} total locations`);
+        console.log('First 5 locations:', data.slice(0, 5));
+        
+        // Check for valid coordinates
+        const validLocations = data.filter(loc => 
+          typeof loc.lat === 'number' && 
+          typeof loc.lng === 'number' && 
+          !isNaN(loc.lat) && 
+          !isNaN(loc.lng)
+        );
+        
+        console.log(`Locations with valid coordinates: ${validLocations.length}/${data.length}`);
+        
+        if (validLocations.length < data.length) {
+          console.warn('Some locations have invalid coordinates!');
+          console.warn('Invalid locations:', data.filter(loc => 
+            typeof loc.lat !== 'number' || 
+            typeof loc.lng !== 'number' || 
+            isNaN(loc.lat) || 
+            isNaN(loc.lng)
+          ));
+        }
+        
+        console.log('=== FETCH LOCATIONS END ===');
+        
+        // Count locations by type and source
+        const typeCounts: Record<string, number> = {};
+        const sourceCounts: Record<string, number> = {};
+        
+        data.forEach(location => {
+          // Count by type
+          const type = location.type || 'unknown';
+          typeCounts[type] = (typeCounts[type] || 0) + 1;
+          
+          // Count by source
+          const source = location.source || 'user';
+          sourceCounts[source] = (sourceCounts[source] || 0) + 1;
+        });
+        
+        console.log('Locations by type:', typeCounts);
+        console.log('Locations by source:', sourceCounts);
+        
+        // Log a sample of each type of location
+        const samplesByType: Record<string, Location> = {};
+        const samplesBySource: Record<string, Location> = {};
+        
+        data.forEach(location => {
+          const type = location.type || 'unknown';
+          const source = location.source || 'user';
+          
+          if (!samplesByType[type]) {
+            samplesByType[type] = location;
+          }
+          
+          if (!samplesBySource[source]) {
+            samplesBySource[source] = location;
+          }
+        });
+        
+        console.log('Sample locations by type:', samplesByType);
+        console.log('Sample locations by source:', samplesBySource);
+        
+        // If no locations were returned, add some mock data for testing
+        if (data.length === 0) {
+          console.log('No locations returned, adding mock data');
+          
+          // Add mock police stations
+          const mockPoliceStations: Location[] = [
+            {
+              id: 'mock-police-1',
+              name: 'Mock Police Station 1',
+              type: 'police',
+              address: '123 Main St, Boston, MA',
+              lat: 42.3601 + 0.01,
+              lng: -71.0589 + 0.01,
+              positive_count: 5,
+              neutral_count: 2,
+              negative_count: 1,
+              total_ratings: 8,
+              source: 'csv',
+              external_id: 'mock-1',
+              last_updated: Date.now()
+            },
+            {
+              id: 'mock-police-2',
+              name: 'Mock Police Station 2',
+              type: 'police',
+              address: '456 Oak St, Boston, MA',
+              lat: 42.3601 - 0.01,
+              lng: -71.0589 - 0.01,
+              positive_count: 3,
+              neutral_count: 1,
+              negative_count: 2,
+              total_ratings: 6,
+              source: 'csv',
+              external_id: 'mock-2',
+              last_updated: Date.now()
+            }
+          ];
+          
+          // Add mock restrooms
+          const mockRestrooms: Location[] = [
+            {
+              id: 'mock-restroom-1',
+              name: 'Mock Restroom 1',
+              type: 'restroom',
+              address: '789 Pine St, Boston, MA',
+              lat: 42.3601 + 0.02,
+              lng: -71.0589 + 0.02,
+              positive_count: 7,
+              neutral_count: 1,
+              negative_count: 0,
+              total_ratings: 8,
+              source: 'refuge_restrooms',
+              external_id: 'mock-3',
+              last_updated: Date.now(),
+              ada_accessible: true,
+              unisex: true
+            },
+            {
+              id: 'mock-restroom-2',
+              name: 'Mock Restroom 2',
+              type: 'restroom',
+              address: '101 Elm St, Boston, MA',
+              lat: 42.3601 - 0.02,
+              lng: -71.0589 - 0.02,
+              positive_count: 2,
+              neutral_count: 3,
+              negative_count: 1,
+              total_ratings: 6,
+              source: 'goweewee',
+              external_id: 'mock-4',
+              last_updated: Date.now(),
+              ada_accessible: false,
+              unisex: true
+            }
+          ];
+          
+          data = [...mockPoliceStations, ...mockRestrooms];
+        }
+        
         setLocations(data);
-      } else {
-        const data = await getLocations(filters, undefined, undefined, includeExternal);
-        setLocations(data);
+      } catch (error) {
+        console.error('Error fetching locations:', error);
+        setLocations([]);
       }
     };
 
@@ -227,15 +384,50 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
       onLoad={onLoad}
       onUnmount={onUnmount}
     >
+      {/* Test pin for Boston */}
+      <Marker
+        key="boston-test"
+        position={{ lat: 42.3601, lng: -71.0589 }}
+        icon={{
+          url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+          scaledSize: new google.maps.Size(80, 80), // Very large size
+          origin: new google.maps.Point(0, 0),
+          anchor: new google.maps.Point(40, 80)
+        }}
+        onClick={() => console.log('Boston test pin clicked')}
+      />
+      
       {/* Render location markers */}
-      {locations.map((location) => (
-        <Marker
-          key={location.id}
-          position={{ lat: location.lat, lng: location.lng }}
-          icon={getMarkerIcon(location)}
-          onClick={() => setSelectedLocation(location)}
-        />
-      ))}
+      {(() => { console.log('=== RENDERING MARKERS ===', locations.length, 'locations'); return null; })()}
+      {locations.map((location, index) => {
+        console.log(`Marker ${index}: ${location.name}, lat: ${location.lat}, lng: ${location.lng}, type: ${location.type}, source: ${location.source || 'user'}`);
+        
+        // Skip locations with invalid coordinates
+        if (typeof location.lat !== 'number' || 
+            typeof location.lng !== 'number' || 
+            isNaN(location.lat) || 
+            isNaN(location.lng)) {
+          console.warn(`Skipping marker ${index} due to invalid coordinates:`, location);
+          return null;
+        }
+        
+        // Log the marker icon
+        const icon = getMarkerIcon(location);
+        console.log(`Marker ${index} icon:`, icon);
+        
+        return (
+          <Marker
+            key={location.id}
+            position={{ lat: location.lat, lng: location.lng }}
+            icon={icon}
+            onClick={() => {
+              console.log('Marker clicked:', location);
+              setSelectedLocation(location);
+            }}
+          />
+        );
+      })}
+      {(() => { console.log('=== MARKERS RENDERED ==='); return null; })()}
 
       {/* Render info window for selected location */}
       {selectedLocation && (
