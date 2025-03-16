@@ -1,0 +1,34 @@
+.map-page {
+  display: flex;
+  height: calc(100vh - 70px); /* Subtract navigation height */
+}
+
+.sidebar {
+  width: 300px;
+  padding: 16px;
+  background-color: #f9f9f9;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.map-container {
+  flex-grow: 1;
+  position: relative;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .map-page {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .sidebar {
+    width: 100%;
+    padding: 12px;
+  }
+  
+  .map-container {
+    height: calc(100vh - 70px - 200px); /* Subtract nav height and approximate sidebar height */
+  }
+}

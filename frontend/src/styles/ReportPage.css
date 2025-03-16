@@ -1,0 +1,44 @@
+.report-page {
+  padding: 32px 16px;
+  background-color: #f9f9f9;
+  min-height: calc(100vh - 70px); /* Subtract navigation height */
+}
+
+.report-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.page-header h1 {
+  color: #ADD8E6;
+  font-size: 2rem;
+  margin-bottom: 16px;
+}
+
+.page-header p {
+  color: #666;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .report-page {
+    padding: 24px 12px;
+  }
+  
+  .page-header h1 {
+    font-size: 1.8rem;
+  }
+  
+  .page-header p {
+    font-size: 1rem;
+  }
+}
