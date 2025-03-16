@@ -23,7 +23,6 @@ DEBUG = True
 # Cache for API responses to avoid excessive API calls
 api_cache = {
     "refuge_restrooms": {"data": None, "timestamp": 0},
-    "goweewee": {"data": None, "timestamp": 0},
     "police_stations": {"data": None, "timestamp": 0}
 }
 
@@ -158,49 +157,6 @@ def get_refuge_restrooms(lat: float, lng: float, page: int = 1, per_page: int = 
     except requests.RequestException as e:
         logger.error(f"Error fetching data from Refuge Restrooms API: {e}")
         return []
-
-def get_goweewee_restrooms(lat: float, lng: float, radius: int = 10) -> List[Dict[str, Any]]:
-    """
-    Fetch restroom data from GoWeeWee API.
-    Note: This API is currently not working correctly, so we're returning mock data.
-    
-    Args:
-        lat: Latitude
-        lng: Longitude
-        radius: Search radius in kilometers
-        
-    Returns:
-        List of restroom locations
-    """
-    # Since the GoWeeWee API is not working, return mock data
-    logger.info("Using mock data for GoWeeWee API")
-    
-    # Generate some mock restrooms around the given coordinates
-    mock_restrooms = []
-    for i in range(10):
-        # Generate random offsets for lat/lng (roughly within the radius)
-        lat_offset = (i % 5) * 0.01
-        lng_offset = (i % 3) * 0.01
-        
-        mock_restroom = {
-            "name": f"GoWeeWee Restroom {i+1}",
-            "type": "restroom",
-            "address": f"Mock Address {i+1}, Mock City, MA",
-            "lat": lat + lat_offset,
-            "lng": lng + lng_offset,
-            "positive_count": 0,
-            "neutral_count": 0,
-            "negative_count": 0,
-            "total_ratings": 0,
-            "source": "goweewee",
-            "external_id": f"goweewee-{i+1}",
-            "ada_accessible": i % 2 == 0,  # Every other restroom is ADA accessible
-            "unisex": i % 3 == 0,  # Every third restroom is unisex
-            "last_updated": int(datetime.now().timestamp() * 1000)
-        }
-        mock_restrooms.append(mock_restroom)
-    
-    return mock_restrooms
 
 def load_police_stations_from_csv() -> List[Dict[str, Any]]:
     """
@@ -342,12 +298,10 @@ def get_all_external_locations(lat: float, lng: float, radius: int = 10, max_res
         Dictionary with lists of locations from different sources
     """
     refuge_restrooms = get_refuge_restrooms(lat, lng, per_page=50, max_results=max_restrooms)
-    goweewee_restrooms = get_goweewee_restrooms(lat, lng, radius)
     police_stations = load_police_stations_from_csv()
     
     return {
         "refuge_restrooms": refuge_restrooms,
-        "goweewee_restrooms": goweewee_restrooms,
         "police_stations": police_stations
     }
 

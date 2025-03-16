@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 from firebase_config import cred
 from external_apis import (
     get_refuge_restrooms,
-    get_goweewee_restrooms,
     load_police_stations_from_csv,
     get_all_external_locations,
     save_external_locations_to_firebase,
@@ -260,7 +259,7 @@ async def get_locations(
 async def get_ratings(location_id: str):
     try:
         # Check if this is an external location (has a source prefix in the ID)
-        if '-' in location_id and any(prefix in location_id for prefix in ['refuge', 'goweewee', 'csv', 'mock-police']):
+        if '-' in location_id and any(prefix in location_id for prefix in ['refuge', 'csv', 'mock-police']):
             # For external locations, return mock ratings data
             logger.info(f"Generating mock ratings for external location: {location_id}")
             return generate_mock_ratings(location_id)
@@ -345,13 +344,6 @@ async def debug_external_locations(
             locations = get_refuge_restrooms(lat_float, lng_float, per_page=50)
             return {
                 'source': 'refuge_restrooms',
-                'count': len(locations),
-                'locations': locations
-            }
-        elif source == 'goweewee':
-            locations = get_goweewee_restrooms(lat_float, lng_float)
-            return {
-                'source': 'goweewee',
                 'count': len(locations),
                 'locations': locations
             }
