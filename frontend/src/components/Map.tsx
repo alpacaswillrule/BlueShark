@@ -408,90 +408,44 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
   };
 
   // Get marker icon based on location type and source
-  const getMarkerIcon = (location: Location): google.maps.Icon | string => {
+  const getMarkerIcon = (location: Location): google.maps.Icon => {
     const { type, source } = location;
     console.log(`Getting marker icon for location: ${location.name}, type: ${type}, source: ${source || 'user'}`);
     
-    // Try to use custom icons from the custom_icons folder
-    // Fall back to default markers if custom icons are not available
-    let iconName = type;
+    // Use custom icons from the custom_icons folder based on type
+    // We know we have police.png, restroom.png, and resturant.png (note the typo)
+    let iconPath = '';
     
-    // Add source suffix for external data
-    if (source) {
-      iconName = `${type}_${source}`;
-    }
-    
-    const customIconPath = `/custom_icons/${iconName}.png`;
-    console.log(`Checking for custom icon at: ${customIconPath}`);
-    
-    // Create an image element to check if the custom icon exists
-    const img = new Image();
-    img.src = customIconPath;
-    
-    // If the custom icon exists, use it with custom size for user-submitted locations
-    if (img.complete) {
-      console.log(`Custom icon found for ${location.name}`);
-      // For user-submitted locations, make the icons larger
-      if (!source) {
+    switch (type) {
+      case 'police':
+        iconPath = '/custom_icons/police.png';
+        break;
+      case 'restroom':
+        iconPath = '/custom_icons/restroom.png';
+        break;
+      case 'restaurant':
+        // Note: The file has a typo (resturant.png)
+        iconPath = '/custom_icons/resturant.png';
+        break;
+      default:
+        // Fallback to default Google marker for unknown types
         return {
-          url: customIconPath,
-          scaledSize: new google.maps.Size(40, 40), // Larger size for user-submitted locations
+          url: 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png',
+          scaledSize: new google.maps.Size(40, 40),
           origin: new google.maps.Point(0, 0),
           anchor: new google.maps.Point(20, 40)
         };
-      }
-      return customIconPath;
-    } else {
-      console.log(`No custom icon found for ${location.name}, using default`);
     }
     
-    // For user-submitted locations, make the default icons larger
-    if (!source) {
-      let iconUrl = '';
-      
-      // Default markers by type
-      switch (type) {
-        case 'restroom':
-          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
-          break;
-        case 'restaurant':
-          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/green-dot.png';
-          break;
-        case 'police':
-          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
-          break;
-        default:
-          iconUrl = 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png';
-      }
-      
-      return {
-        url: iconUrl,
-        scaledSize: new google.maps.Size(40, 40), // Larger size for user-submitted locations
-        origin: new google.maps.Point(0, 0),
-        anchor: new google.maps.Point(20, 40)
-      };
-    }
+    // For user-submitted locations, make the icons larger
+    const size = !source ? 50 : 40;
     
-    // Otherwise, use default markers with different colors based on source
-    if (source === 'refuge_restrooms' && type === 'restroom') {
-      return 'http://maps.google.com/mapfiles/ms/icons/lightblue-dot.png';
-    } else if (source === 'goweewee' && type === 'restroom') {
-      return 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
-    } else if (source === 'csv' && type === 'police') {
-      return 'http://maps.google.com/mapfiles/ms/icons/pink-dot.png';
-    }
-    
-    // Default markers by type
-    switch (type) {
-      case 'restroom':
-        return 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png';
-      case 'restaurant':
-        return 'http://maps.google.com/mapfiles/ms/icons/green-dot.png';
-      case 'police':
-        return 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
-      default:
-        return 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png';
-    }
+    return {
+      url: iconPath,
+      scaledSize: new google.maps.Size(size, size),
+      origin: new google.maps.Point(0, 0),
+      anchor: new google.maps.Point(size/2, size/2)
+    };
   };
 
   // Render the map
@@ -579,36 +533,15 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
               return null;
             }
             
-            // Log the marker icon
+            // Get the icon for this location
             const icon = getMarkerIcon(location);
             console.log(`Marker ${index} icon:`, icon);
-            
-            // Create a marker with a visible label for debugging
-            // For string icons, convert them to Icon objects with explicit size
-            const finalIcon = typeof icon === 'string' ? {
-              url: icon,
-              scaledSize: new google.maps.Size(50, 50), // Make markers larger
-              origin: new google.maps.Point(0, 0),
-              anchor: new google.maps.Point(25, 50)
-            } : {
-              ...icon,
-              scaledSize: new google.maps.Size(50, 50), // Make markers larger
-              anchor: new google.maps.Point(25, 50)
-            };
-            
-            console.log(`Final icon for marker ${index}:`, finalIcon);
             
             return (
               <Marker
                 key={location.id}
                 position={{ lat: location.lat, lng: location.lng }}
-                icon={finalIcon}
-                label={{
-                  text: `${index}`,
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '14px'
-                }}
+                icon={icon}
                 zIndex={1000} // Ensure markers are on top
                 onClick={() => {
                   console.log('Marker clicked:', location);
