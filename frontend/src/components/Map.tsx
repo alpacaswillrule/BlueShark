@@ -56,8 +56,15 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
   });
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [allLocations, setAllLocations] = useState<Location[]>([]);
-  const [filteredLocations, setFilteredLocations] = useState<Location[]>([]);
+  // Separate state for each type of location
+  const [policeLocations, setPoliceLocations] = useState<Location[]>([]);
+  const [restroomLocations, setRestroomLocations] = useState<Location[]>([]);
+  const [restaurantLocations, setRestaurantLocations] = useState<Location[]>([]);
+  const [otherLocations, setOtherLocations] = useState<Location[]>([]);
+  
+  // Total count of all locations
+  const totalLocationsCount = policeLocations.length + restroomLocations.length + 
+                             restaurantLocations.length + otherLocations.length;
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [locationRatings, setLocationRatings] = useState<Rating[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -92,35 +99,39 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
     return distance;
   }, []);
 
-  // Apply filtering immediately when component mounts or filters change
-  useEffect(() => {
-    console.log('DIRECT FILTER EFFECT TRIGGERED');
-    console.log('Current filter type:', filters.type);
-    console.log('Total locations available:', allLocations.length);
+  // Function to categorize locations by type
+  const categorizeLocations = useCallback((locations: Location[]) => {
+    console.log('Categorizing locations by type');
     
-    // Apply filtering directly
-    let filtered = [...allLocations];
+    const police: Location[] = [];
+    const restrooms: Location[] = [];
+    const restaurants: Location[] = [];
+    const others: Location[] = [];
     
-    // Filter by type if a type filter is active
-    if (filters.type) {
-      console.log(`Filtering by type: ${filters.type}`);
-      filtered = filtered.filter(location => location.type === filters.type);
-    }
-    
-    // Log the results
-    console.log(`FILTERED to ${filtered.length} locations`);
-    
-    // Log types of filtered locations
-    const typeCount: Record<string, number> = {};
-    filtered.forEach(loc => {
-      typeCount[loc.type] = (typeCount[loc.type] || 0) + 1;
+    locations.forEach(location => {
+      switch (location.type) {
+        case 'police':
+          police.push(location);
+          break;
+        case 'restroom':
+          restrooms.push(location);
+          break;
+        case 'restaurant':
+          restaurants.push(location);
+          break;
+        default:
+          others.push(location);
+          break;
+      }
     });
-    console.log('Types after filtering:', typeCount);
     
-    // Update filtered locations
-    setFilteredLocations(filtered);
+    console.log(`Categorized: ${police.length} police, ${restrooms.length} restrooms, ${restaurants.length} restaurants, ${others.length} others`);
     
-  }, [allLocations, filters.type]);
+    setPoliceLocations(police);
+    setRestroomLocations(restrooms);
+    setRestaurantLocations(restaurants);
+    setOtherLocations(others);
+  }, []);
   
   // Function to fetch locations
   const fetchLocations = useCallback(async () => {
@@ -291,8 +302,8 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
       // Get all locations from cache
       const locations = Object.values(allLocationsRef.current);
       
-      // Update state with all locations
-      setAllLocations(locations);
+      // Categorize locations by type
+      categorizeLocations(locations);
     } catch (error) {
       console.error('Error fetching locations:', error);
       
@@ -301,15 +312,18 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
       
       if (locations.length > 0) {
         console.log(`Using ${locations.length} cached locations due to API error`);
-        setAllLocations(locations);
+        categorizeLocations(locations);
       } else {
-        setAllLocations([]);
+        setPoliceLocations([]);
+        setRestroomLocations([]);
+        setRestaurantLocations([]);
+        setOtherLocations([]);
       }
     } finally {
       // Reset loading state
       setIsLoading(false);
     }
-  }, [filters, userLocation, includeExternal, isLoading, setIsLoading]);
+  }, [filters, userLocation, includeExternal, isLoading, setIsLoading, categorizeLocations]);
   
   // Function to clear the cache and refresh data
   const refreshData = useCallback(() => {
@@ -374,8 +388,10 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
     
     // Clear state
     setMap(null);
-    setAllLocations([]);
-    setFilteredLocations([]);
+    setPoliceLocations([]);
+    setRestroomLocations([]);
+    setRestaurantLocations([]);
+    setOtherLocations([]);
     setSelectedLocation(null);
     setLocationRatings([]);
   }, [map]);
@@ -453,7 +469,10 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
       >
         <span style={{ fontWeight: 'bold' }}>
           Showing: {filters.type ? filters.type.charAt(0).toUpperCase() + filters.type.slice(1) : 'All Locations'} 
-          ({filteredLocations.length} locations)
+          ({filters.type === 'police' ? policeLocations.length : 
+             filters.type === 'restroom' ? restroomLocations.length :
+             filters.type === 'restaurant' ? restaurantLocations.length :
+             totalLocationsCount} locations)
         </span>
       </div>
 
@@ -550,24 +569,118 @@ const Map: React.FC<MapProps> = ({ filters, includeExternal = true }) => {
           />
         )}
         
-        {/* Render location markers */}
+        {/* Render location markers based on filter type */}
         {(() => { 
           console.log('=== RENDERING MARKERS ===');
-          console.log(`Rendering ${filteredLocations.length} filtered locations`);
+          console.log(`Current filter type: ${filters.type || 'all'}`);
           
-          // Log types of locations being rendered
-          const typeCount: Record<string, number> = {};
-          filteredLocations.forEach(loc => {
-            typeCount[loc.type] = (typeCount[loc.type] || 0) + 1;
-          });
-          console.log('Types of locations being rendered:', typeCount);
+          if (filters.type === 'police') {
+            console.log(`Rendering ${policeLocations.length} police locations`);
+          } else if (filters.type === 'restroom') {
+            console.log(`Rendering ${restroomLocations.length} restroom locations`);
+          } else if (filters.type === 'restaurant') {
+            console.log(`Rendering ${restaurantLocations.length} restaurant locations`);
+          } else {
+            console.log(`Rendering all ${totalLocationsCount} locations`);
+          }
           
           return null; 
         })()}
         
-        {filteredLocations.length > 0 ? (
-          // Render markers for filtered locations
-          filteredLocations.map((location, index) => {
+        {/* Conditional rendering based on filter type */}
+        {filters.type === 'police' && policeLocations.length > 0 ? (
+          // Render police markers
+          policeLocations.map((location, index) => {
+              console.log(`Rendering police marker ${index}: ${location.name}`);
+              
+              // Skip locations with invalid coordinates
+              if (typeof location.lat !== 'number' || 
+                  typeof location.lng !== 'number' || 
+                  isNaN(location.lat) || 
+                  isNaN(location.lng)) {
+                console.warn(`Skipping marker ${index} due to invalid coordinates:`, location);
+                return null;
+              }
+              
+              // Get the icon for this location
+              const icon = getMarkerIcon(location);
+              
+              return (
+                <Marker
+                  key={location.id}
+                  position={{ lat: location.lat, lng: location.lng }}
+                  icon={icon}
+                  zIndex={1000} // Ensure markers are on top
+                  onClick={() => {
+                    console.log('Marker clicked:', location);
+                    setSelectedLocation(location);
+                  }}
+                />
+              );
+            })
+        ) : filters.type === 'restroom' && restroomLocations.length > 0 ? (
+          // Render restroom markers
+          restroomLocations.map((location, index) => {
+              console.log(`Rendering restroom marker ${index}: ${location.name}`);
+              
+              // Skip locations with invalid coordinates
+              if (typeof location.lat !== 'number' || 
+                  typeof location.lng !== 'number' || 
+                  isNaN(location.lat) || 
+                  isNaN(location.lng)) {
+                console.warn(`Skipping marker ${index} due to invalid coordinates:`, location);
+                return null;
+              }
+              
+              // Get the icon for this location
+              const icon = getMarkerIcon(location);
+              
+              return (
+                <Marker
+                  key={location.id}
+                  position={{ lat: location.lat, lng: location.lng }}
+                  icon={icon}
+                  zIndex={1000} // Ensure markers are on top
+                  onClick={() => {
+                    console.log('Marker clicked:', location);
+                    setSelectedLocation(location);
+                  }}
+                />
+              );
+            })
+        ) : filters.type === 'restaurant' && restaurantLocations.length > 0 ? (
+          // Render restaurant markers
+          restaurantLocations.map((location, index) => {
+              console.log(`Rendering restaurant marker ${index}: ${location.name}`);
+              
+              // Skip locations with invalid coordinates
+              if (typeof location.lat !== 'number' || 
+                  typeof location.lng !== 'number' || 
+                  isNaN(location.lat) || 
+                  isNaN(location.lng)) {
+                console.warn(`Skipping marker ${index} due to invalid coordinates:`, location);
+                return null;
+              }
+              
+              // Get the icon for this location
+              const icon = getMarkerIcon(location);
+              
+              return (
+                <Marker
+                  key={location.id}
+                  position={{ lat: location.lat, lng: location.lng }}
+                  icon={icon}
+                  zIndex={1000} // Ensure markers are on top
+                  onClick={() => {
+                    console.log('Marker clicked:', location);
+                    setSelectedLocation(location);
+                  }}
+                />
+              );
+            })
+        ) : !filters.type && totalLocationsCount > 0 ? (
+          // Render all markers when no filter is active
+          [...policeLocations, ...restroomLocations, ...restaurantLocations, ...otherLocations].map((location, index) => {
               console.log(`Rendering marker ${index}: ${location.name}, lat: ${location.lat}, lng: ${location.lng}, type: ${location.type}, source: ${location.source || 'user'}`);
               
               // Skip locations with invalid coordinates
